@@ -1,6 +1,8 @@
 package com.wdx.middleware.handler;
 
 import com.wdx.middleware.annontation.Agent;
+import com.wdx.middleware.cache.AgentCache;
+import com.wdx.middleware.cache.MemoryAgentCache;
 import org.apache.log4j.Logger;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.Signature;
@@ -13,14 +15,13 @@ public class AgentHandler {
 
     private static Logger logger = Logger.getLogger(AgentHandler.class);
 
+    private AgentCache agentCache = new MemoryAgentCache();
+
 
     private static long timeout = 500;
 
     private static ConcurrentHashMap<String,Long> timeMap = new ConcurrentHashMap<String, Long>();
     private static ConcurrentHashMap<String,String> threadHashMap = new ConcurrentHashMap<String, String>();//线程安全HashMap
-
-    private static ConcurrentHashMap<String ,Object> resultMap = new ConcurrentHashMap<String, Object>();//请求结果本地缓存
-
 
     public Object proceed(ProceedingJoinPoint pjp) throws Throwable {
 
@@ -33,7 +34,7 @@ public class AgentHandler {
         }
         long startTime =timeMap.get(method.getName()) == null?0:timeMap.get(method.getName());
         if((System.currentTimeMillis() - startTime)>=timeout ){
-            resultMap.remove(method.getName());
+            boolean del = agentCache.remove(method.getName());
             threadHashMap.remove(method.getName());
         }
 
@@ -47,13 +48,13 @@ public class AgentHandler {
             //记录第一个请求时的时间戳
             timeMap.put(method.getName(),System.currentTimeMillis());
             result =pjp.proceed();
-            resultMap.put(method.getName(),result);
+            agentCache.save(method.getName(),result);
         }else{
             logger.debug("method:"+method.getName()+"has used @Agent,but not the first request");
             //非第一次请求
             do{
                 Thread.sleep(20);
-                result = resultMap.get(method.getName());
+                result = agentCache.get(method.getName());
             }while (result == null && (System.currentTimeMillis() - timeMap.get(method.getName()))<timeout );
             if(result == null){
                 logger.debug("method:"+method.getName()+"has used @Agent,but not the first request,and time out");
@@ -62,5 +63,9 @@ public class AgentHandler {
             }
         }
         return result;
+    }
+
+    public void setAgentCache(AgentCache agentCache) {
+        this.agentCache = agentCache;
     }
 }

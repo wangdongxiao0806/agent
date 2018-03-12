@@ -2,7 +2,6 @@ package com.wdx.middleware.handler;
 
 import com.wdx.middleware.annontation.Agent;
 import com.wdx.middleware.cache.AgentCache;
-import com.wdx.middleware.cache.MemoryAgentCache;
 import org.apache.log4j.Logger;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.Signature;
@@ -15,15 +14,12 @@ public class AgentHandler {
 
     private static Logger logger = Logger.getLogger(AgentHandler.class);
 
-    private AgentCache agentCache = new MemoryAgentCache();
-
-
     private static long timeout = 500;
 
     private static ConcurrentHashMap<String,Long> timeMap = new ConcurrentHashMap<String, Long>();
     private static ConcurrentHashMap<String,String> threadHashMap = new ConcurrentHashMap<String, String>();//线程安全HashMap
 
-    public Object proceed(ProceedingJoinPoint pjp) throws Throwable {
+    public Object proceed(ProceedingJoinPoint pjp,AgentCache agentCache) throws Throwable {
 
         Signature signature=pjp.getSignature();
         MethodSignature methodSignature=(MethodSignature)signature;
@@ -59,13 +55,9 @@ public class AgentHandler {
             if(result == null){
                 logger.debug("method:"+method.getName()+"has used @Agent,but not the first request,and time out");
                 //如果等待没有获取到结果，则重试
-                return proceed(pjp);
+                return proceed(pjp,agentCache);
             }
         }
         return result;
-    }
-
-    public void setAgentCache(AgentCache agentCache) {
-        this.agentCache = agentCache;
     }
 }

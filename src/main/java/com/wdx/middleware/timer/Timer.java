@@ -14,8 +14,8 @@ public class Timer {
         timeCache.put(key,System.currentTimeMillis());
     }
     public static boolean isTimeOut(String key){
-        Long t = timeCache.get(key);
-        Long n = System.currentTimeMillis();
+        long t = timeCache.get(key)==null?0:timeCache.get(key);
+        long n = System.currentTimeMillis();
         if((n-t) >= TIME_OUT){
             return true;
         }

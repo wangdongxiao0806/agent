@@ -20,8 +20,6 @@ public class AgentHandler {
 
     private static Logger logger = Logger.getLogger(AgentHandler.class);
 
-    private static long timeout = 500;
-
     private static ConcurrentHashMap<String,String> threadCache = new ConcurrentHashMap<String, String>();//线程安全HashMap,用来存放并发请求线程
 
     public Object proceed(ProceedingJoinPoint pjp,AgentCache agentCache) throws Throwable {

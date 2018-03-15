@@ -2,6 +2,7 @@ package com.wdx.middleware.handler;
 
 import com.wdx.middleware.annontation.Agent;
 import com.wdx.middleware.cache.AgentCache;
+import com.wdx.middleware.timer.Timer;
 import org.apache.log4j.Logger;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.Signature;
@@ -16,33 +17,29 @@ public class AgentHandler {
 
     private static long timeout = 500;
 
-    private static ConcurrentHashMap<String,Long> timeMap = new ConcurrentHashMap<String, Long>();
-    private static ConcurrentHashMap<String,String> threadHashMap = new ConcurrentHashMap<String, String>();//线程安全HashMap
+    private static ConcurrentHashMap<String,String> threadMap = new ConcurrentHashMap<String, String>();//线程安全HashMap,用来存放并发请求线程
 
     public Object proceed(ProceedingJoinPoint pjp,AgentCache agentCache) throws Throwable {
 
-        Signature signature=pjp.getSignature();
-        MethodSignature methodSignature=(MethodSignature)signature;
-        Method method =methodSignature.getMethod();
-        if(!method.isAnnotationPresent(Agent.class)){
+        Method method = this.getMethod(pjp);
+        if(!this.isAnnotationWithAgent(method)){
             logger.debug("method:"+method.getName()+" has not used @Agent !");
             return pjp.proceed();
         }
-        long startTime =timeMap.get(method.getName()) == null?0:timeMap.get(method.getName());
-        if((System.currentTimeMillis() - startTime)>=timeout ){
+        if(Timer.isTimeOut(method.getName())){
             boolean del = agentCache.remove(method.getName());
-            threadHashMap.remove(method.getName());
+            threadMap.remove(method.getName());
         }
 
         String threadName = Thread.currentThread().getName();
-        String oldName = threadHashMap.putIfAbsent(method.getName(),threadName);
+        String oldName = threadMap.putIfAbsent(method.getName(),threadName);
         Object result = null;
 
         //第一次请求
         if(oldName == null){
             logger.debug("method:"+method.getName()+"has used @Agent,the first request");
             //记录第一个请求时的时间戳
-            timeMap.put(method.getName(),System.currentTimeMillis());
+            Timer.setTime(method.getName());
             result =pjp.proceed();
             agentCache.save(method.getName(),result);
         }else{
@@ -51,7 +48,7 @@ public class AgentHandler {
             do{
                 Thread.sleep(20);
                 result = agentCache.get(method.getName());
-            }while (result == null && (System.currentTimeMillis() - timeMap.get(method.getName()))<timeout );
+            }while (result == null && !Timer.isTimeOut(method.getName()) );
             if(result == null){
                 logger.debug("method:"+method.getName()+"has used @Agent,but not the first request,and time out");
                 //如果等待没有获取到结果，则重试
@@ -59,5 +56,16 @@ public class AgentHandler {
             }
         }
         return result;
+    }
+
+    private boolean isAnnotationWithAgent(Method method){
+        return method.isAnnotationPresent(Agent.class);
+    }
+
+    private Method getMethod(ProceedingJoinPoint pjp){
+        Signature signature=pjp.getSignature();
+        MethodSignature methodSignature=(MethodSignature)signature;
+        Method method =methodSignature.getMethod();
+        return method;
     }
 }

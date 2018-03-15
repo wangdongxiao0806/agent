@@ -26,6 +26,6 @@ public class AgentAopInterceptor {
         }else if("redis".equals(cacheModel)){
             agentCache = null;
         }
-        this.cacheModel = cacheModel;
+        this.cacheModel = "memory";
     }
 }
